@@ -1,32 +1,31 @@
-import { createUmi } from "@metaplex-foundation/umi-bundle-defaults"
-import { createSignerFromKeypair, signerIdentity, generateSigner, percentAmount } from "@metaplex-foundation/umi"
-import { createNft, mplTokenMetadata } from "@metaplex-foundation/mpl-token-metadata";
-
 import wallet from "../Turbin3-wallet.json"
-import base58 from "bs58";
+import { createUmi } from "@metaplex-foundation/umi-bundle-defaults"
+import { createGenericFile, createSignerFromKeypair, signerIdentity } from "@metaplex-foundation/umi"
+import { irysUploader } from "@metaplex-foundation/umi-uploader-irys"
+import { readFile } from "fs/promises"
 
-const RPC_ENDPOINT = "https://api.devnet.solana.com";
-const umi = createUmi(RPC_ENDPOINT);
+// Create a devnet connection
+const umi = createUmi('https://api.devnet.solana.com');
 
 let keypair = umi.eddsa.createKeypairFromSecretKey(new Uint8Array(wallet));
-const myKeypairSigner = createSignerFromKeypair(umi, keypair);
-umi.use(signerIdentity(myKeypairSigner));
-umi.use(mplTokenMetadata())
+const signer = createSignerFromKeypair(umi, keypair);
 
-const mint = generateSigner(umi);
+umi.use(irysUploader({address: "https://devnet.irys.xyz/"}));
+umi.use(signerIdentity(signer));
 
 (async () => {
-    let tx = await createNft(umi, {
-        mint,
-        name: "Zack's NFT",
-        symbol: "ZACK",
-        uri: "https://devnet.irys.xyz/Gph45nuPyaaFPuXJVMJoBnZusgNB79DM9gME58SFps8G",
-        sellerFeeBasisPoints: percentAmount(5),
+    try {
+        //1. Load image
+        const image = await readFile("./generug.png");
+        // 2. Convert image to generic file
+        const file = createGenericFile(image, "image.png", {
+            contentType: "image/png"
         });
-    let result = await tx.sendAndConfirm(umi);
-    const signature = base58.encode(result.signature);
-    
-    console.log(`Succesfully Minted! Check out your TX here:\nhttps://explorer.solana.com/tx/${signature}?cluster=devnet`)
-
-    console.log("Mint Address: ", mint.publicKey);
+        //3. Upload image
+        const [myUri] = await umi.uploader.upload([file]); 
+        console.log("Your image URI: ", myUri);
+    }
+    catch(error) {
+        console.log("Oops.. Something went wrong", error);
+    }
 })();
