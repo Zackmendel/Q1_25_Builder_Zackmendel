@@ -1,30 +1,32 @@
-import wallet from "../wba-wallet.json"
 import { createUmi } from "@metaplex-foundation/umi-bundle-defaults"
-import { createGenericFile, createSignerFromKeypair, signerIdentity } from "@metaplex-foundation/umi"
-import { irysUploader } from "@metaplex-foundation/umi-uploader-irys"
-import { readFile } from "fs/promises"
+import { createSignerFromKeypair, signerIdentity, generateSigner, percentAmount } from "@metaplex-foundation/umi"
+import { createNft, mplTokenMetadata } from "@metaplex-foundation/mpl-token-metadata";
 
-// Create a devnet connection
-const umi = createUmi('https://api.devnet.solana.com');
+import wallet from "../Turbin3-wallet.json"
+import base58 from "bs58";
+
+const RPC_ENDPOINT = "https://api.devnet.solana.com";
+const umi = createUmi(RPC_ENDPOINT);
 
 let keypair = umi.eddsa.createKeypairFromSecretKey(new Uint8Array(wallet));
-const signer = createSignerFromKeypair(umi, keypair);
+const myKeypairSigner = createSignerFromKeypair(umi, keypair);
+umi.use(signerIdentity(myKeypairSigner));
+umi.use(mplTokenMetadata())
 
-umi.use(irysUploader());
-umi.use(signerIdentity(signer));
+const mint = generateSigner(umi);
 
 (async () => {
-    try {
-        //1. Load image
-        //2. Convert image to generic file.
-        //3. Upload image
+    let tx = await createNft(umi, {
+        mint,
+        name: "Zack's NFT",
+        symbol: "ZACK",
+        uri: "https://devnet.irys.xyz/Gph45nuPyaaFPuXJVMJoBnZusgNB79DM9gME58SFps8G",
+        sellerFeeBasisPoints: percentAmount(5),
+        });
+    let result = await tx.sendAndConfirm(umi);
+    const signature = base58.encode(result.signature);
+    
+    console.log(`Succesfully Minted! Check out your TX here:\nhttps://explorer.solana.com/tx/${signature}?cluster=devnet`)
 
-        // const image = ???
-
-        // const [myUri] = ??? 
-        // console.log("Your image URI: ", myUri);
-    }
-    catch(error) {
-        console.log("Oops.. Something went wrong", error);
-    }
+    console.log("Mint Address: ", mint.publicKey);
 })();
